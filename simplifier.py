@@ -143,28 +143,42 @@ class ProblemSolver():
                 return False
         return True
 
+    def forwardChecking(self, var, val):
+        constraintsToCheck = filter(lambda c: c.varA == var, self.problem.arcs)
+        newDomains = {}
+        for constraint in constraintsToCheck:
+            varB = constraint.varB
+            newDomains[varB] = list(filter(lambda v: v is not None, [v if constraint.checkConstraintsForIndividualValues(val,v, verbose = False) else None for v in self.problem.domains[varB]]))
+        return newDomains
 
-    def _backtrack(self, partial_assignment):
+    def _backtrack(self, partial_assignment, forwardChecking = True):
         assert self.problem
         if set(partial_assignment.keys()) == set(self.problem.variables):
             return partial_assignment
         to_assign = list(filter(lambda x: x is not None, [var if var not in partial_assignment else None for var in self.problem.variables]))[0]
         
         print(f"Next to assign: {to_assign}")
+
         for d_val in self.problem.domains[to_assign]:
+            
+            domains_before_fwc = copy.deepcopy(self.problem.domains)
             print(f"\t Trying assignment {to_assign}:{d_val}")
             new_assignment = {}
             new_assignment.update(partial_assignment)
             new_assignment.update({f"{to_assign}":d_val})
 
+            if forwardChecking:
+                self.problem.domains.update(self.forwardChecking(to_assign, d_val))
+                print(f'New domains {self.problem.domains}')
+                
             if self.checkConstraintsForAssignment(new_assignment):
-                result = self._backtrack(new_assignment)
+                result = self._backtrack(new_assignment, forwardChecking = forwardChecking)
                 if result is not None:
                     return result
                 print(f'Backtracking, assignment {to_assign}:{d_val} not valid')
+            self.problem.domains = domains_before_fwc
         return None
 
-    def solveWithBacktracking(self):
+    def solveWithBacktracking(self, forwardChecking = True):
         assert self.problem
-        return self._backtrack({})
-
+        return self._backtrack({}, forwardChecking = forwardChecking)
